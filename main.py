@@ -1,9 +1,9 @@
 import os
 import logging
-import asyncio
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 from telegram import Update
+from telegram.error import TelegramError
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # إعداد السجلات
@@ -11,7 +11,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "6880607158"))
 
-# 1. خادم لإبقاء Render مستيقظاً وتلبية طلبات UptimeRobot (GET & HEAD)
+# 1. خادم لإبقاء Render مستيقظاً وتلبية طلبات UptimeRobot
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -25,7 +25,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        return  # لمنع ملء السجلات بطلبات UptimeRobot المكررة
+        return
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -45,21 +45,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
 
+    # استقبال رسائل الطلاب وإرسالها للأدمن
     if chat_id != ADMIN_ID:
         user_info = f"📩 **رسالة جديدة من:** {user.first_name} (ID: `{user.id}`)\n\n"
         
-        if update.message.text:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=user_info + update.message.text,
-                parse_mode="Markdown"
-            )
-        else:
-            await context.bot.send_message(chat_id=ADMIN_ID, text=user_info, parse_mode="Markdown")
-            await update.message.forward(chat_id=ADMIN_ID)
-
+        await context.bot.send_message(chat_id=ADMIN_ID, text=user_info, parse_mode="Markdown")
+        await update.message.copy(chat_id=ADMIN_ID)
         await update.message.reply_text("تم استلام رسالتك بنجاح، وسيتم الرد عليك قريباً! ✨")
 
+    # رد الأدمن على الطالب عبر الـ Reply
     elif chat_id == ADMIN_ID and update.message.reply_to_message:
         try:
             reply_text = update.message.reply_to_message.text or update.message.reply_to_message.caption or ""
@@ -67,31 +61,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if "ID: `" in reply_text:
                 target_user_id = int(reply_text.split("ID: `")[1].split("`")[0])
 
-                if update.message.text:
-                    await context.bot.send_message(
-                        chat_id=target_user_id,
-                        text=f"💬 **رد الدعم الفني:**\n\n{update.message.text}",
-                        parse_mode="Markdown"
-                    )
-                elif update.message.photo:
-                    await context.bot.send_photo(
-                        chat_id=target_user_id,
-                        photo=update.message.photo[-1].file_id,
-                        caption=f"💬 **رد الدعم الفني:**\n\n{update.message.caption or ''}"
-                    )
-                
+                await context.bot.send_message(chat_id=target_user_id, text="💬 **رد الدعم الفني:**")
+                await update.message.copy(chat_id=target_user_id)
                 await update.message.reply_text("✅ تم إرسال الرد بنجاح!")
             else:
                 await update.message.reply_text("❌ يرجى الرد (Reply) على رسالة الإشعار التي تحتوي على ID الطالب.")
 
+        except TelegramError as e:
+            await update.message.reply_text(f"❌ تعذر إرسال الرد (قد يكون الطالب قام بحظر البوت):\n`{e}`", parse_mode="Markdown")
         except Exception as e:
-            await update.message.reply_text(f"❌ تعذر إرسال الرد:\n{e}")
+            await update.message.reply_text(f"❌ حدث خطأ غير متوقع:\n`{e}`", parse_mode="Markdown")
 
 if __name__ == '__main__':
-    # تشغيل خادم HTTP في الخلفية
     Thread(target=run_dummy_server, daemon=True).start()
 
-    # تشغيل البوت
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -99,3 +82,4 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(~filters.COMMAND, handle_message))
 
     app.run_polling()
+    

@@ -2,7 +2,7 @@ import os
 import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -39,7 +39,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "**مرحباً بك في الدعم الفني لموقع Klavior! 👋**\n\n"
         "أرسل استفسارك أو مشكلتك هنا مباشرة، وسيقوم فريق الدعم بالرد عليك في أقرب وقت. 💙"
     )
-    await update.message.reply_text(welcome_text, parse_mode="Markdown")
+    
+    # إضافة زر شفاف يحتوي على رابط الموقع
+    keyboard = [
+        [InlineKeyboardButton("🌐 زيارة موقع Klavior", url="https://klavior.com")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -82,4 +89,4 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(~filters.COMMAND, handle_message))
 
     app.run_polling()
-    
+        

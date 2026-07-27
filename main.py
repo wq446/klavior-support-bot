@@ -11,16 +11,26 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "6880607158"))
 
-# 1. خادم وهمي لإبقاء Render سعيداً وتجنب إغلاق Web Service
+# 1. خادم لإبقاء Render مستيقظاً وتلبية طلبات UptimeRobot (GET & HEAD)
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
         self.end_headers()
         self.wfile.write(b"Bot is running successfully!")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return  # لمنع ملء السجلات بطلبات UptimeRobot المكررة
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    logging.info(f"Health check server running on port {port}")
     server.serve_forever()
 
 # 2. منطق البوت
